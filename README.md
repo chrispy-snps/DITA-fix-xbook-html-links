@@ -1,7 +1,12 @@
 # DITA-fix-xbook-html-links
 
-To run the example,
+To run the examples,
 
-    cd ./example
+    cd ./example_flat
+    ./runme.sh
+
+and
+
+    cd ./example_dirs
     ./runme.sh
 
