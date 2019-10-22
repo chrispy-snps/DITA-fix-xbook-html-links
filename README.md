@@ -125,9 +125,17 @@ and
     cd ./example_dirs
     ./runme.sh
 
+## Implementation Notes
+
+The `<span>...</span>` elements are replaced with `<xref>...</xref>` elements using regular-expression substitution. I tried various HTML parsing solutions, but they didn't work, or they significantly degraded the file structure, or they were very slow.
+
+The file path comparison code works by building arbitrarily nested hashes. This was a bit more complicated to code than an array-based approach, but it is far faster when thousands of files are processed (because hash collisions occur only when the leaf filenames collide).
+
 ## Limitations
 
 Note the following limitations of the script:
 
 * The map or bookmap files must have a scope value set at the top level of the map.
 * Nested map files are not yet supported.
+* DITA topic files must exist at or below the directory of their map file.
+* In the HTML5 files, cross-book `<span>` elements cannot contain nested `<span>` elements within them or the regex substitution produces unmatched tags.
