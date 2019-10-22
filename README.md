@@ -8,7 +8,6 @@ This script reconstructs cross-book links in the DITA-OT HTML5 output via post-p
 
 For more information on scoped keys, see 
 [*DITA 1.3 Feature Article: Understanding Scoped Keys in DITA 1.3*](https://www.oasis-open.org/committees/download.php/56472/Understanding%20Scoped%20Keys%20In%20DITA%201.3.pdf).
-
 ## Getting Started
 
 You can run this script on a native linux machine, or on a Windows 10 machine that has Windows Subsystem for Linux (WSL) installed.
@@ -60,18 +59,6 @@ For example, in the default bash shell, add this line to your `\~/.profile` file
 PATH=~/DITA-fix-html-xbook-links/bin:$PATH
 ```
 
-
-
-To run the examples,
-
-    cd ./example_flat
-    ./runme.sh
-
-and
-
-    cd ./example_dirs
-    ./runme.sh
-
 ## Usage
 
 This utility takes .ditamap files and published HTML5 files as input, then modifies the HTML5 files in-place to reconstruct cross-book links.
@@ -90,7 +77,17 @@ Usage:
               One or more directory paths containing HTML output from the DITA-OT
 ```
 
+The `--dita` option specifies a directory where top-level .ditamap files can be found. It **does** not recurse into subdirectories.
+
+The `--html` option specifies a directory where published HTML5 files can be found. It **does** recurse into subdirectories.
+
 Multiple directories can be specified using either comma separation or multiple options. Directory names with spaces are not supported.
+
+For example,
+
+```
+fix_html_xbook_links.pl --dita /product1/dita --dita product2/dita --html ./out
+```
 
 ## Operation
 
@@ -117,6 +114,16 @@ To be considered a match, the DITA file path components must be **entirely conta
 ## Examples
 
 Two examples are provided. The "flat" example uses single input and output directories for the DITA and HTML5 files, and the "dirs" example uses multiple input and output DITA and HTML5 directories.
+
+To run the examples, use the following commands:
+
+    cd ./example_flat
+    ./runme.sh
+
+and
+
+    cd ./example_dirs
+    ./runme.sh
 
 ## Limitations
 
