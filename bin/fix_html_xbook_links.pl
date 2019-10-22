@@ -80,16 +80,14 @@ my %htmlfile_for_key = ();
  my $pathhash = {};
  foreach my $key (keys %topicfile_for_key) {
   my $thishash = $pathhash;
-  my @paths = ((reverse split(/\//, $topicfile_for_key{$key} =~ s!\.dita$!!r)));
-  $thishash = ($thishash->{$_} or ($thishash->{$_} = {})) for @paths;
+  $thishash = ($thishash->{$_} or ($thishash->{$_} = {})) for (get_path_list($topicfile_for_key{$key}));
   $thishash->{'key'} = $key;
  }
 
  HTML: foreach my $html_file (@html_files) {
-  my @paths = ((reverse split(/\//, $html_file =~ s!\.html$!!r)));
   my $thishash = $pathhash;
-  foreach my $path (@paths) {
-   ($thishash = $thishash->{$path}) or next HTML;
+  foreach my $path (get_path_list($html_file)) {
+   ($thishash = $thishash->{$path}) or next HTML;  # no HTML path branch to follow, so no match
    if (defined($thishash->{'key'})) {
     $htmlfile_for_key{$thishash->{'key'}} = $html_file;
     next HTML;
@@ -122,6 +120,11 @@ foreach my $file (@html_files) {
  write_entire_file($file, $guts);
 }
 
+# removes the file extension, then returns the path components in reverse order
+sub get_path_list {
+ my $file = File::Spec->canonpath($_[0]);
+ return (reverse split(/\//, $file =~ s!\.\w+$!!r))
+}
 
 sub read_entire_file {
  my $filename = shift;
@@ -158,7 +161,7 @@ fix_html_xbook_links.pl - show content model of DITA topicshell or mapshell modu
 
 =head1 VERSION
 
-0.10
+0.11
 
 =cut
 
