@@ -97,7 +97,7 @@ When the HTML5 transformation is modified as described above, the published HTML
 <p class="p">See <span class="xref" data-keyref="B.topic_B">this topic in book B</span>.</p>
 ```
 
-The script uses the .ditamap files to correlate the key reference to a DITA filename, then correlates this DITA filename to the matching HTML5 filename, then converts the `<span @data-keyref="scope.key">` element to an `<a @href="html_filename">` element.
+The script uses the .ditamap files to correlate the key reference to a DITA filename, then correlates this DITA filename to the matching HTML5 filename, then converts the `<span @data-keyref="scope.key">` element to an `<a @href="html_filename">` element (adjusted for relative path differences between the referring and referenced HTML files).
 
 To correlate DITA files to HTML5 files, the script compares the following:
 
