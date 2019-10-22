@@ -58,7 +58,7 @@ foreach my $mapfile (@ditamap_files) {
  my $twig = XML::Twig->new(
   twig_handlers => {
    '*[@href and @keys]' => sub {
-    my $book = $_->inherit_att('keyscope');
+    my $book = $_->inherit_att('keyscope') or die '@keyscope must be defined on the top-level <map> or <bookmap>';
     my $scoped_key = $book.'.'.$_->att('keys');
     $topicfile_for_key{$scoped_key} = $_->att('href');
     return 1; },
@@ -87,7 +87,6 @@ my %htmlfile_for_key = ();
   foreach my $path (@paths) {
    ($thishash = $thishash->{$path}) or next HTML;
    if (defined($thishash->{'key'})) {
- print "FOUND! ".$thishash->{'key'}."\n";
     $htmlfile_for_key{$thishash->{'key'}} = $html_file;
     next HTML;
    }
@@ -115,7 +114,7 @@ foreach my $file (@html_files) {
  };
 
  $guts =~ s!(<span[^>]+data-keyref=["'][^"']*["'][^>]*>.*?<\/span>)!$process_keyref->(dirname($file),$1)!gse;
- print "Updated $updated_count xrefs in '$file'...\n" if $updated_count;
+ print "Updated $updated_count xrefs in '$file'.\n" if $updated_count;
  write_entire_file($file, $guts);
 }
 
