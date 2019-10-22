@@ -24,7 +24,7 @@
 
 # Prerequisites:
 # sudo apt-get install make cpanminus  (makes it much easier to install Perl modules)
-# sudo cpanm install XML::Twig Acme::Tools utf8::all
+# sudo cpanm install XML::Twig utf8::all
 
 use strict;
 use warnings;
