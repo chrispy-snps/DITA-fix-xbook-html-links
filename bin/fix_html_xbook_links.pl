@@ -34,25 +34,29 @@ use XML::Twig;
 use utf8::all;
 use File::Basename;
 
-my $ditapath;
-my $htmlpath;
+
+# parse command line arguments
+my @ditapaths;
+my @htmlpaths;
 
 GetOptions(
-  'dita=s'  => \$ditapath,
-  'html=s'  => \$htmlpath,
+  'dita=s@'  => \@ditapaths,
+  'html=s@'  => \@htmlpaths,
   'help'    => sub { HelpMessage(0) }
   ) or HelpMessage(1);
 
-if (!defined($ditapath) || !defined($htmlpath)) {
- print "Error: --dita is a required option.\n" if !defined($ditapath);
- print "Error: --html is a required option.\n" if !defined($htmlpath);
+if (!@ditapaths || !@htmlpaths) {
+ print "Error: --dita is a required option.\n" if !@ditapaths;
+ print "Error: --html is a required option.\n" if !@htmlpaths;
  HelpMessage(1);
 }
 
+@ditapaths = split(/,/, join(',', @ditapaths));  # accept multiple options or comma-separated paths
+@htmlpaths = split(/,/, join(',', @htmlpaths));
 
 # acquire key/topic file pairs from all ditamaps
 my %topicfile_for_key = ();
-(my @ditamap_files = glob "$ditapath/*.ditamap") or die "No .ditamap files found.";
+(my @ditamap_files = map {glob "$_/*.ditamap"} @ditapaths) or die "No .ditamap files found.";
 print "Acquiring topic information from ditamaps...\n";
 foreach my $mapfile (@ditamap_files) {
  my $twig = XML::Twig->new(
@@ -67,7 +71,7 @@ foreach my $mapfile (@ditamap_files) {
 }
 
 # get a list of HTML files with unresolved key references
-(my @html_files = split /\s+/, `fgrep --files-with-matches 'data-keyref=' --recursive $htmlpath`) or die "No HTML files found.";
+(my @html_files = map {split /\s+/, `fgrep --files-with-matches 'data-keyref=' --recursive $_`} @htmlpaths) or die "No HTML files found.";
 print "Acquiring HTML files with unresolved cross-book links...\n";
 
 # associate topic files with HTML files
@@ -144,12 +148,13 @@ fix_html_xbook_links.pl - show content model of DITA topicshell or mapshell modu
 
 =head1 SYNOPSIS
 
-  [--dita <path>]
-          Location of directory containing .ditamap files
-          (default is 'dita')
-  [--html <path>]
-          Location of HTML output directories from the DITA-OT
-          (default is 'out')
+  [--dita <path1>,<path2>,...]
+  [--dita <path1> --dita <path2> ...]
+          One or more directory paths containing .ditamap files
+
+  [--html <path1>,<path2>,...]
+  [--html <path1> --html <path2> ...]
+          One or more directory paths containing HTML output from the DITA-OT
 
 =head1 VERSION
 

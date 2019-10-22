@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-model href="urn:oasis:names:tc:dita:rng:map.rng" schematypens="http://relaxng.org/ns/structure/1.0"?>
+<map keyscope="B">
+   <title>Book B Online Help</title>
+   <mapref href="bookA_dir/bookA.ditamap" scope="peer" keyscope="A" processing-role="resource-only" navtitle="A"/>
+   <mapref href="bookC_dir/bookC.ditamap" scope="peer" keyscope="C" processing-role="resource-only" navtitle="C"/>
+   <topicref href="bookB_dir/topic_B.dita" keys="topic_B"/>
+</map>
+
