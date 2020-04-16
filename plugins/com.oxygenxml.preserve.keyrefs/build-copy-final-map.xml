@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <target name="copy-final-map">
+    <basename property="dita.input.basename" file="${dita.input.filename}"/>
+<!--    <copy file="${dita.temp.dir}/${dita.input.basename}" tofile="${dita.output.dir}/keys-${dita.input.basename}"/>-->
+    <xslt in="${dita.temp.dir}/${dita.input.basename}" style="${dita.plugin.com.oxygenxml.preserve.keyrefs.dir}/clean-keys-map.xsl" out="${dita.output.dir}/keys-${dita.input.basename}"/>
+  </target>
+</project>
+

@@ -1,24 +1,12 @@
 #!/usr/bin/perl
-# fix_html_xbook_links.pl - post-process DITA-OT HTML output to resolve cross-book links
+# fix_html_xbook_links.pl - resolve cross-book links in DITA-OT HTML5 outputs
 #
 #
-# This script requires that the following template:
+# This script requires that the following DITA-OT plugin be installed:
 #
-#   <xsl:if test="contains(@class, ' topic/xref ')">
-#     <xsl:if test="@keyref">
-#       <xsl:attribute name="data-keyref" select="@keyref"/>
-#     </xsl:if>
-#   </xsl:if>
+#   com.oxygenxml.preserve.keyrefs
 #
-# be placed at the end of
-#
-#   <xsl:template name="commonattributes">
-#
-# in the following file:
-#
-#   <DITA-OT>/plugins/org.dita.html5/xsl/topic.xsl
-#
-# Thanks to Radu Coravu @ SyncroSoft for this XSLT!
+# Thanks to Radu Coravu @ SyncroSoft for all his help!
 #
 #
 
@@ -29,102 +17,187 @@
 use strict;
 use warnings;
 
-use Getopt::Long 'HelpMessage';
-use XML::Twig;
+use List::Util qw(min max sum0);
 use utf8::all;
+use Getopt::Long 'HelpMessage';
+use File::Spec;
 use File::Basename;
+use File::Find;
+use XML::Twig;
 
+my $verbose;
+my $quiet;
+my $dry_run;
+my $keep_keyrefs;
 
 # parse command line arguments
-my @ditapaths;
-my @htmlpaths;
-
 GetOptions(
-  'dita=s@'  => \@ditapaths,
-  'html=s@'  => \@htmlpaths,
-  'help'    => sub { HelpMessage(0) }
+  'verbose'      => \$verbose,
+  'quiet'        => \$quiet,
+  'dry-run'      => \$dry_run,
+  'keep-keyrefs' => \$keep_keyrefs,
+  'help'         => sub { HelpMessage(0) }
   ) or HelpMessage(1);
 
-if (!@ditapaths || !@htmlpaths) {
- print "Error: --dita is a required option.\n" if !@ditapaths;
- print "Error: --html is a required option.\n" if !@htmlpaths;
+my @html_dirs = @ARGV;
+if (!@html_dirs) {
+ print "Error: no HTML directories specified.\n";
  HelpMessage(1);
 }
+ 
 
-@ditapaths = split(/,/, join(',', @ditapaths));  # accept multiple options or comma-separated paths
-@htmlpaths = split(/,/, join(',', @htmlpaths));
-
-# acquire key/topic file pairs from all ditamaps
-my %topicfile_for_key = ();
-(my @ditamap_files = map {glob "$_/*.ditamap"} @ditapaths) or die "No .ditamap files found.";
-print "Acquiring topic information from ditamaps...\n";
-foreach my $mapfile (@ditamap_files) {
- my $twig = XML::Twig->new(
-  twig_handlers => {
-   '*[@href and @keys]' => sub {
-    my $book = $_->inherit_att('keyscope') or die '@keyscope must be defined on the top-level <map> or <bookmap>';
-    my $scoped_key = $book.'.'.$_->att('keys');
-    $topicfile_for_key{$scoped_key} = $_->att('href');
-    return 1; },
-  }
- )->parsefile($mapfile);
-}
-
-# get a list of HTML files with unresolved key references
-(my @html_files = map {split /\s+/, `fgrep --files-with-matches 'data-keyref=' --recursive $_`} @htmlpaths) or die "No HTML files found.";
-print "Acquiring HTML files with unresolved cross-book links...\n";
-
-# associate topic files with HTML files
-my %htmlfile_for_key = ();
+# see what keymap and HTML files we can find
+my %html_files = ();
+my %keymap_files = ();
 {
- my $pathhash = {};
- foreach my $key (keys %topicfile_for_key) {
-  my $thishash = $pathhash;
-  $thishash = ($thishash->{$_} or ($thishash->{$_} = {})) for (get_path_list($topicfile_for_key{$key}));
-  $thishash->{'key'} = $key;
+ print "Searching for files...\n";
+ my $current_dir;
+ foreach my $dir (@html_dirs) {
+  find({
+   wanted => sub { $keymap_files{$File::Find::name} = '' if (m!keys-[^/]+\.ditamap$!i); return 1; },
+   follow => 1 }, $dir);
  }
+ print "  Found ".scalar(keys %keymap_files)." content directories.\n";
 
- HTML: foreach my $html_file (@html_files) {
-  my $thishash = $pathhash;
-  foreach my $path (get_path_list($html_file)) {
-   ($thishash = $thishash->{$path}) or next HTML;  # no HTML path branch to follow, so no match
-   if (defined($thishash->{'key'})) {
-    $htmlfile_for_key{$thishash->{'key'}} = $html_file;
-    next HTML;
-   }
-  }
+ foreach my $dir (map {File::Spec->rel2abs(dirname($_))} sort keys %keymap_files) {  # hash HTML files by keymap directory
+  find({
+   wanted => sub { $html_files{$dir}->{$File::Find::name} = '' if (m!\.html?$!i); return 1; },
+   follow => 1 }, $dir);
  }
+ print "  Found ".sum0(map {scalar(%{$html_files{$_}})} keys %html_files)." HTML files.\n";
 }
 
-# process HTML files
-foreach my $file (@html_files) {
- my $guts = read_entire_file($file);
+
+# read key map files
+my $keymaps_twig = XML::Twig->new()->parse('<keymaps/>');
+my $deliverables_twig = XML::Twig->new()->parse('<deliverables/>');
+{
+ my $count = 0;
+ foreach my $keyfile (sort map {File::Spec->rel2abs($_)} keys %keymap_files) {
+  my $keymap_elt = $keymap_files{$keyfile} = XML::Twig->new(
+   twig_handlers => {
+    '*[@keys]' => sub { $count++; return 1; },
+   })->safe_parsefile($keyfile)->root;
+  $keymap_elt->set_att('file', $keyfile);
+  $keymap_elt->move('last_child', $keymaps_twig->root);
+
+  my $output = File::Spec->rel2abs(dirname($keyfile));
+  my $dirname = basename($output);
+  my ($map) = (basename($keyfile) =~ m!keys-([^/]+)\.ditamap$!i);
+  $deliverables_twig->root->insert_new_elt('last_child', 'deliverable' => {'map' => $map, 'dirname' => $dirname, 'output' => $output, '#keymap_elt' => $keymap_elt});
+ }
+ print "  Found $count key definitions.\n";
+}
+#$deliverables_twig->print(pretty_print => 'indented');
+#$keymaps_twig->print(pretty_print => 'indented');
+
+
+
+# define a subroutine to return the map for a given book keyscope
+#
+# Key resolution rules:
+#
+# * Output directory names (highest)
+# * Keymap names (lowest)
+my %cache = ();
+ sub compute_href_from_scoped_keyref {
+  my ($scoped_keyref) = @_;
+  return $cache{$scoped_keyref} if defined($cache{$scoped_keyref});  # global scope namespace
+
+  my ($book_scope, $key_value) = ($scoped_keyref =~ m!^([^\.]+)\.(.*)$!);
+  my @deliverables = $deliverables_twig->root->children("deliverable[\@dirname='$book_scope' or \@map='$book_scope']");
+
+  # apply book scope precedence here, if any
+  if (scalar(@deliverables) > 1) {
+   if ($verbose) {
+    print "Warning: Multiple deliverables match '$book_scope', using first match:\n";
+    print "  ".$_->sprint."\n" for @deliverables;
+   }
+   @deliverables = ($deliverables[0]);
+  }
+
+  if (!@deliverables) {
+   print "Error: Could not resolve book scope '$book_scope'.\n" if $verbose;
+   return ($cache{$scoped_keyref} = undef);
+  }
+
+  my @target_hrefs = ();
+  foreach my $deliverable (@deliverables) {
+   my $keymap_elt = $deliverable->att('#keymap_elt');
+   if (my @topicrefs = $keymap_elt->descendants_or_self("*[\@keys =~ /\\b$key_value\\b/ and \@href]")) {
+    my $href = File::Spec->rel2abs($topicrefs[0]->att('href'), dirname($keymap_elt->att('file')));
+    $href =~ s!\.dita!\.html!i;
+    if (-f ($href =~ s!#.*$!!r)) {
+     push @target_hrefs, $href;
+    } else {
+     print "Warning: Could not find '$href'\n." if $verbose;  # we have the output directory and keymap file but not the file
+    }
+   }
+  }
+
+  if (!@target_hrefs) {
+   print "Error: Could not resolve scoped key reference '$scoped_keyref'.\n" if $verbose;
+   return ($cache{$scoped_keyref} = undef);
+  }
+
+  # apply href precedence here, if any
+  if (scalar(@target_hrefs) > 1) {
+   if ($verbose) {
+    print "Warning: Multiple key definitions matched '$scoped_keyref', using first match:\n";
+    print "  ".File::Spec->abs2rel($_)."\n" for @target_hrefs;
+   }
+   @target_hrefs = ($target_hrefs[0]);
+  }
+
+  return ($cache{$scoped_keyref} = $target_hrefs[0]);  # global scope namespace
+ }
+
+
+
+print "Processing HTML files...\n";
+my @warnings = ();
+foreach my $keymap_elt ($keymaps_twig->root->children) {
+ my $keymap_file = $keymap_elt->att('file');
+ my $bookdir = File::Spec->rel2abs(dirname($keymap_file));
+ print sprintf("  Processing '%s'...", basename($bookdir));
  my $updated_count = 0;
+ my $omitted_count = 0;
+ foreach my $html_file (sort keys %{$html_files{$bookdir}}) {
+  my $guts = read_entire_file($html_file);
 
- my $process_keyref = sub {
-  my ($srcdir, $element) = @_;
-  if (my ($key) = $element =~ m!data-keyref=["']([^"']*)["']!) {
-   if (defined($htmlfile_for_key{$key})) {
-    $key = File::Spec->abs2rel($htmlfile_for_key{$key}, $srcdir);
-    $element =~ s!^<span!<a!s;
-    $element =~ s!span>$!a>!s;
-    $element =~ s!data-keyref=["'][^"']*["']!href="$key" from-keyref="true"!s;
-    $updated_count++;
-   }
-  }
-  return $element;
- };
+  # this subroutine converts a scoped keyref to an href, if possible
+  my $regsub_process_keyref = sub {
+   my ($srcdir, $element) = @_;
+   $element =~ s!\s+(href|format|scope)\s*=\s*"[^"]*"!!gs;  # delete unused attributes
+   if (my ($scoped_keyref) = $element =~ m!data-keyref=["']([^"']*)["']!) {
+    if (defined(my $href = compute_href_from_scoped_keyref($scoped_keyref))) {
+     $href = File::Spec->abs2rel($href, $srcdir);
+     $element =~ s!(\s+data-keyref\s*=)! href="$href"$1!gs;
+     $element =~ s!\s+data-keyref\s*=\s*"[^"]*"!!gs if !$keep_keyrefs;
+     $element =~ s!^<span!<a!s;
+     $element =~ s!</\s*span>$!</a>!s;
+     $updated_count++;
+    } else {
+     push @warnings, sprintf("Could not find '%s' referenced in '%s'.", $scoped_keyref, File::Spec->abs2rel($html_file));
+     $omitted_count++;
+    }
+   } else { die 'key value expected'; }
+   return $element;
+  };
 
- $guts =~ s!(<span[^>]+data-keyref=["'][^"']*["'][^>]*>.*?<\/span>)!$process_keyref->(dirname($file),$1)!gse;
- print "Updated $updated_count xrefs in '$file'.\n" if $updated_count;
- write_entire_file($file, $guts);
+  $guts =~ s!(<span[^>]+data-keyref=["'][^"']*["'][^>]*>.*?<\/span>)!$regsub_process_keyref->(dirname($html_file),$1)!gse;
+  write_entire_file($html_file, $guts) if !$dry_run;
+ }
+ print " -- converted $updated_count keyrefs" if $updated_count;
+ print " -- ***$omitted_count keyrefs NOT FOUND***" if $omitted_count;
+ print "\n";
 }
 
-# removes the file extension, then returns the path components in reverse order
-sub get_path_list {
- my $file = File::Spec->canonpath($_[0]);
- return (reverse split(/\//, $file =~ s!\.\w+$!!r))
-}
+print "Processing complete.\n";
+print "\n".join("\n", @warnings)."\n" if @warnings;
+exit;
+
+
 
 sub read_entire_file {
  my $filename = shift;
@@ -144,24 +217,31 @@ sub write_entire_file {
  close FILE;
 }
 
+# sort and remove duplicates
+sub distinct { return sort keys %{{map {($_ => 1)} @_}} }
+
+
 
 =head1 NAME
 
-fix_html_xbook_links.pl - show content model of DITA topicshell or mapshell module
+fix_html_xbook_links.pl - resolve cross-book links in DITA-OT HTML5 outputs
 
 =head1 SYNOPSIS
 
-  [--dita <path1>,<path2>,...]
-  [--dita <path1> --dita <path2> ...]
-          One or more directory paths containing .ditamap files
-
-  [--html <path1>,<path2>,...]
-  [--html <path1> --html <path2> ...]
-          One or more directory paths containing HTML output from the DITA-OT
+  <html_dir> [<html_dir> ...]
+        Set of directories containing HTML5 output from the DITA-OT
+  -verbose
+        Show all ambiguity messages
+  -quiet
+        Supppress unresolved keyref messages
+  -dry-run
+        Process but don't modify files
+  -keep-keyrefs
+        Keep @data-keyref attributes in HTML (to allow for future incremental updates)
 
 =head1 VERSION
 
-0.11
+0.20
 
 =cut
 
