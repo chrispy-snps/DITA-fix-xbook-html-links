@@ -25,15 +25,11 @@ use File::Basename;
 use File::Find;
 use XML::Twig;
 
-my $verbose;
-my $quiet;
 my $dry_run;
 my $keep_keyrefs;
 
 # parse command line arguments
 GetOptions(
-  'verbose'      => \$verbose,
-  'quiet'        => \$quiet,
   'dry-run'      => \$dry_run,
   'keep-keyrefs' => \$keep_keyrefs,
   'help'         => sub { HelpMessage(0) }
@@ -109,15 +105,13 @@ my %cache = ();
 
   # apply book scope precedence here, if any
   if (scalar(@deliverables) > 1) {
-   if ($verbose) {
-    print "Warning: Multiple deliverables match '$book_scope', using first match:\n";
-    print "  ".$_->sprint."\n" for @deliverables;
-   }
+   print "    Warning: Multiple deliverables match '$book_scope', using first match:\n";
+   print sprintf("      original map name: '%s.ditamap', output directory name: '%s'\n", $_->att('map'), $_->att('dirname')) for @deliverables;
    @deliverables = ($deliverables[0]);
   }
 
   if (!@deliverables) {
-   print "Error: Could not resolve book scope '$book_scope'.\n" if $verbose;
+   print "    Error: Could not resolve book scope '$book_scope'.\n";
    return ($cache{$scoped_keyref} = undef);
   }
 
@@ -130,22 +124,20 @@ my %cache = ();
     if (-f ($href =~ s!#.*$!!r)) {
      push @target_hrefs, $href;
     } else {
-     print "Warning: Could not find '$href'\n." if $verbose;  # we have the output directory and keymap file but not the file
+     print "    Warning: Could not find '$href'\n.";  # we have the output directory and keymap file but not the file
     }
    }
   }
 
   if (!@target_hrefs) {
-   print "Error: Could not resolve scoped key reference '$scoped_keyref'.\n" if $verbose;
+   print "    Error: Could not resolve scoped key reference '$scoped_keyref'.\n";
    return ($cache{$scoped_keyref} = undef);
   }
 
   # apply href precedence here, if any
   if (scalar(@target_hrefs) > 1) {
-   if ($verbose) {
-    print "Warning: Multiple key definitions matched '$scoped_keyref', using first match:\n";
-    print "  ".File::Spec->abs2rel($_)."\n" for @target_hrefs;
-   }
+   print "    Warning: Multiple key definitions matched '$scoped_keyref', using first match:\n";
+   print "      ".File::Spec->abs2rel($_)."\n" for @target_hrefs;
    @target_hrefs = ($target_hrefs[0]);
   }
 
@@ -159,7 +151,7 @@ my @warnings = ();
 foreach my $keymap_elt ($keymaps_twig->root->children) {
  my $keymap_file = $keymap_elt->att('file');
  my $bookdir = File::Spec->rel2abs(dirname($keymap_file));
- print sprintf("  Processing '%s'...", basename($bookdir));
+ print sprintf("  Processing '%s'...\n", basename($bookdir));
  my $updated_count = 0;
  my $omitted_count = 0;
  foreach my $html_file (sort keys %{$html_files{$bookdir}}) {
@@ -188,9 +180,8 @@ foreach my $keymap_elt ($keymaps_twig->root->children) {
   $guts =~ s!(<span[^>]+data-keyref=["'][^"']*["'][^>]*>.*?<\/span>)!$regsub_process_keyref->(dirname($html_file),$1)!gse;
   write_entire_file($html_file, $guts) if !$dry_run;
  }
- print " -- converted $updated_count keyrefs" if $updated_count;
- print " -- ***$omitted_count keyrefs NOT FOUND***" if $omitted_count;
- print "\n";
+ print "    Converted $updated_count keyrefs.\n" if $updated_count;
+ print "    Warning: $omitted_count keyrefs not found.\n" if $omitted_count;
 }
 
 print "Processing complete.\n";
@@ -230,10 +221,6 @@ fix_html_xbook_links.pl - resolve cross-book links in DITA-OT HTML5 outputs
 
   <html_dir> [<html_dir> ...]
         Set of directories containing HTML5 output from the DITA-OT
-  -verbose
-        Show all ambiguity messages
-  -quiet
-        Supppress unresolved keyref messages
   -dry-run
         Process but don't modify files
   -keep-keyrefs
@@ -241,7 +228,7 @@ fix_html_xbook_links.pl - resolve cross-book links in DITA-OT HTML5 outputs
 
 =head1 VERSION
 
-0.20
+0.25
 
 =cut
 
