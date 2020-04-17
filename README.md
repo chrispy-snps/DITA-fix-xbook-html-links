@@ -131,7 +131,7 @@ The `--keep-keyrefs` option keeps the @data-keyref attributes in the HTML5 files
 
 ## Examples
 
-[Click here](./example/README.md) to see the included example.
+[Click here](./example/) to see the included example.
 
 ## Implementation Notes
 
