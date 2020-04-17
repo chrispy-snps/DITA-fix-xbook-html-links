@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-model href="urn:oasis:names:tc:dita:rng:map.rng" schematypens="http://relaxng.org/ns/structure/1.0"?>
+<map keyscope="B">
+   <title><keyword keyref="Product"/> Online Help</title>
+
+  <!-- product title is conditionalized by DITAVAL -->
+  <keydef keys="Product" product="B1">
+    <topicmeta><keywords><keyword>Product B1</keyword></keywords></topicmeta>
+  </keydef>
+  <keydef keys="Product" product="B2">
+    <topicmeta><keywords><keyword>Product B2</keyword></keywords></topicmeta>
+  </keydef>
+
+   <mapref href="bookA.ditamap" scope="peer" keyscope="bookA" processing-role="resource-only" navtitle="A"/>
+   <topicref href="bookB_contents/topic_B.dita" keys="topic_B"/>
+</map>
+

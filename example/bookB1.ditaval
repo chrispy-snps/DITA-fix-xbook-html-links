@@ -1,0 +1,5 @@
+<val>
+  <prop att="product" action="exclude"/>
+  <prop att="product" val="B1" action="include"/>
+</val>
+

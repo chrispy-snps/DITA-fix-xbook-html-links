@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-model href="urn:oasis:names:tc:dita:rng:basetopic.rng" schematypens="http://relaxng.org/ns/structure/1.0"?>
+<topic id="id_B">
+   <title>Topic in Book for <keyword keyref="Product"/></title>
+   <body>
+      <p>Welcome to the topic in book B published for <keyword keyref="Product"/>!</p>
+      <p>You can also see <xref keyref="bookA.topic_A">this topic in book A</xref>.</p>
+   </body>
+</topic>
+
