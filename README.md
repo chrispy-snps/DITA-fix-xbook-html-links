@@ -2,12 +2,64 @@
 
 ## Introduction
 
-The introduction of scoped keys in DITA 1.3 allows cross-book references (also known as cross-*deliverable* references) to be represented in DITA content. However, the DITA-OT does not yet provide out-of-the-box publishing support for such references.
+The introduction of scoped keys in DITA 1.3 allows cross-book references (also called cross-*deliverable* references) to be represented in DITA content. However, the DITA-OT does not yet provide out-of-the-box publishing support for such references.
 
-This script reconstructs cross-book links in the DITA-OT HTML5 output via post-processing.
+This repo provides a DITA-OT plugin and a perl post-processing script that, when used together, can resolve cross-book links in the DITA-OT's HTML5 output.
 
 For more information on scoped keys, see 
 [*DITA 1.3 Feature Article: Understanding Scoped Keys in DITA 1.3*](https://www.oasis-open.org/committees/download.php/56472/Understanding%20Scoped%20Keys%20In%20DITA%201.3.pdf).
+
+## How It Works
+
+For a post-processing solution to work, we need both the *key references* and *key definitions* to be preserved in the published HTML5 output.
+
+The provided DITA-OT plugin does the following:
+
+* To preserve key *references*, the plugin copies scoped `@keyref` attributes of `<xref>` and `<link>` elements (and their specializations) to an HTML5 `@data-keyref` user attribute:
+
+  ```
+  <p class="p">See <span class="xref" data-keyref="B.topic_B">this topic in book B</span>.</p>
+  ```
+
+  Note that although the DITA-OT published this `<xref>` as an HTML5 `<span>` (because the target could not be resolved during publishing), the `@data-keyref` attribute remains.
+
+* To preserve key *definitions*, the plugin copies a "keys-only" version of the final DITA map to each output directory:
+
+  ```
+  out/bookA/index.html
+  out/bookA/keys-bookA.ditamap
+  ...book A content files...
+
+  out/bookB/index.html
+  out/bookB/keys-bookB.ditamap
+  ...book B content files...
+
+  out/bookC/index.html
+  out/bookC/keys-bookC.ditamap
+  ...book C content files...
+  ```
+
+  This "keys-only" map file contains the `@keys`/`@href` definition pairs **after all filtering and chunking has been applied**:
+
+  ```
+  % cat out/bookA/keys-bookA.ditamap
+  <map>
+     <title>Book A Online Help</title>
+     <topicref keys="topic1" href="bookA_content/topic1.dita"/>
+     <topicref keys="topic2" href="bookA_content/topic2.dita">
+        <topicref keys="topic2a" href="bookA_content/topic2a.dita"/>
+        <topicref keys="topic2b" href="bookA_content/topic2b.dita"/>
+     </topicref>
+  </map>
+  ```
+
+The `.dita` files in the final map correspond directly to `.html` or `.htm` files in the HTML5 output.
+
+After all deliverables are published, the provided perl script post-processes the `<span @data-keyref="scope.key">` elements into `<a @href="html_filename">` elements. The script also adjusts for relative filesystem path differences between referring and referenced HTML files, regardless of the directory structure of the published output.
+
+Book scopes are matched against the output directory names first (to support multiple books published from a single map), then the map names (to handle simple cases).
+  
+
 ## Getting Started
 
 You can run this script on a native linux machine, or on a Windows 10 machine that has Windows Subsystem for Linux (WSL) installed.
@@ -26,7 +78,7 @@ sudo cpanm install XML::Twig utf8::all
 
 #### DITA-OT
 
-You must install the following provided plugin in your DITA-OT:
+You must install the following plugin from this repo in your DITA-OT:
 
 ```
 plugins/com.oxygenxml.preserve.keyrefs/
@@ -34,12 +86,18 @@ plugins/com.oxygenxml.preserve.keyrefs/
 
 ### Installing
 
-Download or clone the repository, then put its `bin/` directory in your search path.
+Download or clone the repository, then put its `bin/` directory in your search path so that the `fix_html_xbook_links.pl` utility is found in your search path.
 
 For example, in the default bash shell, add this line to your `\~/.profile` file:
 
 ```
-PATH=~/DITA-fix-html-xbook-links/bin:$PATH
+PATH=~/git/DITA-fix-html-xbook-links/bin:$PATH
+```
+
+Copy the plugin to your DITA-OT's `plugins/` directory, then run
+
+```
+dita --install
 ```
 
 ## Usage
@@ -53,72 +111,47 @@ $ fix_html_xbook_links.pl
 Usage:
       <html_dir> [<html_dir> ...]
             Set of directories containing HTML5 output from the DITA-OT
-      -verbose
-            Show all ambiguity messages
-      -quiet
-            Supppress unresolved keyref messages
-      -dry-run
+      --dry-run
             Process but don't modify files
-      -keep-keyrefs
+      --keep-keyrefs
             Keep @data-keyref attributes in HTML (to allow for future incremental updates)
 ```
 
-You can specify one or more output directory names. The directories are recursively searched for output. For example,
+To post-process content, specify one or more directory names that contain all the published output:
 
 ```
-fix_html_xbook_links.pl out_set1/ out_set2/
+fix_html_xbook_links.pl ./out
 ```
 
-The `-keep-keyrefs` option keeps the @data-keyref attributes in the HTML5 files, which allows for incremental processing when updated or additional HTML5 files become available.
+You do not need to specify every deliverable output directory individually. The utility recursively searches for keys-*bookname*.ditamap files, then equates those subdirectories with that book's content.
 
-## Operation
+The `--dry-run` option runs the processing and emits all messages, but does not modify any files. Use this first to check for missing or ambiguous (multiple-match) references.
 
-When the DITA-OT plugin above is installed, the published HTML5 files capture scoped key references in a `@data-keyref` attribute:
-
-```
-<p class="p">See <span class="xref" data-keyref="B.topic_B">this topic in book B</span>.</p>
-```
-
-In addition, the DITA-OT writes a keys-only mapfile into each output directory:
-
-```
-out/bookA/index.html
-out/bookA/keys-bookA.ditamap
-...book A content files...
-
-out/bookB/index.html
-out/bookB/keys-bookB.ditamap
-...book B content files...
-
-out/bookC/index.html
-out/bookC/keys-bookC.ditamap
-...book C content files...
-```
-
-This file contains the map's key definitions **after all filtering and chunking has been applied**. The .dita key targets correspond directly to `.html` or `.htm` files in the HTML5 output. This allows the script to convert the `<span @data-keyref="scope.key">` element to an `<a @href="html_filename">` element (adjusted for relative path differences between the referring and referenced HTML files).
-
-Book scopes are matched against the output directory names first (to support multiple books published from a single map), then the map names (to handle simple cases).
+The `--keep-keyrefs` option keeps the @data-keyref attributes in the HTML5 files, which allows for incremental processing when updated or additional HTML5 files become available. For example, you might republish only bookC with an updated content structure, and you want to be able to reprocess bookA and bookB in-place to reflect the new structure of bookC.
 
 ## Examples
 
-To run the examples, install the DITA-OT plugin, then run the following commands:
-
-    cd ./example_simple_books
-    ./runme.sh
-
-    cd ./example_conditional_books
-    ./runme.sh
+[Click here](./example/README.md) to see the included example.
 
 ## Implementation Notes
 
-The `<span>...</span>` elements are replaced with `<xref>...</xref>` elements using regular-expression substitution. I tried various HTML parsing solutions, but they didn't work, or they significantly degraded the file structure, or they were very slow.
-
+The `<span>...</span>` elements are replaced with `<xref>...</xref>` elements using regular-expression substitution. I tried various HTML parsing solutions, but they didn't work, or they significantly degraded the file structure, or they were very slow. However, this results in the unfortunate limitation that I cannot support nested `<span>` elements within the cross-reference `<span>` element. I'm sure it's possible in regex, but I'm not very good with recursive regular expressions.
 
 ## Limitations
 
-Note the following limitations of the script:
+Note the following limitations of this script and this flow:
 
-* Nested scopes in a map are not supported.
+* Scopes inside a map (`bookname.scopename.keyname`) are not supported.
 * The cross-book scope names must match either the book map names or the output directory names.
 * In the HTML5 files, cross-book `<span>` elements cannot contain nested `<span>` elements within them or the regex substitution produces unmatched tags.
-* The plugin creates keys-\<book\>.ditamap files for all output types, not just HTML5 output types.
+* The plugin creates keys-*bookname*.ditamap files for all output types, not just HTML5 output types.
+* Although the keys-only map files contain the original `<mapref>` references, the information is not used or cross-checked for consistency.
+* The DITA-OT produces error messages for cross-book resource-only map references, but they seem to be harmless.
+
+## Acknowledgments
+
+These utilities would not be possible without help from:
+
+* [Synopsys Inc.](https://www.synopsys.com/) (my employer), for allowing me to share my work with the DITA community.
+* [Radu Coravu](https://www.google.com/search?q=radu+coravur+dita+oxygen), for giving me so many answers about DITA-OT plugins that he practically wrote this plugin himself.
+* [Eliot Kimber](https://www.google.com/search?q=eliot+kimber+dita), for helping me understand the processing pipeline inside the DITA-OT.
