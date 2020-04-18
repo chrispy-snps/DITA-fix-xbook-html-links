@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-model href="dita-ot/plugin.rnc" type="application/relax-ng-compact-syntax"?>
+<plugin id="com.synopsys.preserve.keyrefs">
+
+  <!-- this saves scoped keys as href="keyref://..." references -->
+  <feature extension="dita.xsl.topicpull" value="topicpull.xsl" type="file"/>
+
+  <!-- this creates the keys-<mapname>.ditamap file in the output directory
+       after the preprocess stage completes-->
+  <feature extension="ant.import" file="build-copy-final-map.xml"/>
+  <feature extension="depend.preprocess.post" value="copy-final-map"/>
+</plugin>

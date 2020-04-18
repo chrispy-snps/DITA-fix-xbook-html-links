@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <target name="copy-final-map">
+    <basename property="dita.input.basename" file="${dita.input.filename}"/>
+    <xslt in="${dita.temp.dir}/${dita.input.basename}" style="${dita.plugin.com.synopsys.preserve.keyrefs.dir}/copy-final-map.xsl" out="${dita.output.dir}/keys-${dita.input.basename}"/>
+  </target>
+</project>
+

@@ -1,10 +1,10 @@
 #!/usr/bin/perl
-# fix_html_xbook_links.pl - resolve cross-book links in DITA-OT HTML5 outputs
+# fix_html_xbook_links.pl - resolve cross-book links in DITA-OT HTML outputs
 #
 #
-# This script requires that the following DITA-OT plugin be installed:
+# This script requires that the following included DITA-OT plugin be installed:
 #
-#   com.oxygenxml.preserve.keyrefs
+#   com.synopsys.preserve.keyrefs
 #
 # Thanks to Radu Coravu @ SyncroSoft for all his help!
 #
@@ -26,12 +26,10 @@ use File::Find;
 use XML::Twig;
 
 my $dry_run;
-my $keep_keyrefs;
 
 # parse command line arguments
 GetOptions(
   'dry-run'      => \$dry_run,
-  'keep-keyrefs' => \$keep_keyrefs,
   'help'         => sub { HelpMessage(0) }
   ) or HelpMessage(1);
 
@@ -157,27 +155,22 @@ foreach my $keymap_elt ($keymaps_twig->root->children) {
  foreach my $html_file (sort keys %{$html_files{$bookdir}}) {
   my $guts = read_entire_file($html_file);
 
-  # this subroutine converts a scoped keyref to an href, if possible
+  # this subroutine converts a scoped-keyref href, if possible
   my $regsub_process_keyref = sub {
-   my ($srcdir, $element) = @_;
-   $element =~ s!\s+(href|format|scope)\s*=\s*"[^"]*"!!gs;  # delete unused attributes
-   if (my ($scoped_keyref) = $element =~ m!data-keyref=["']([^"']*)["']!) {
-    if (defined(my $href = compute_href_from_scoped_keyref($scoped_keyref))) {
-     $href = File::Spec->abs2rel($href, $srcdir);
-     $element =~ s!(\s+data-keyref\s*=)! href="$href"$1!gs;
-     $element =~ s!\s+data-keyref\s*=\s*"[^"]*"!!gs if !$keep_keyrefs;
-     $element =~ s!^<span!<a!s;
-     $element =~ s!</\s*span>$!</a>!s;
+   my ($srcdir, $href) = @_;
+   if (my ($scoped_keyref) = $href =~ m!keyref://([^"']+)["']!) {
+    if (defined(my $new_href = compute_href_from_scoped_keyref($scoped_keyref))) {
+     $href = sprintf('="%s"', File::Spec->abs2rel($new_href, $srcdir));
      $updated_count++;
     } else {
      push @warnings, sprintf("Could not find '%s' referenced in '%s'.", $scoped_keyref, File::Spec->abs2rel($html_file));
      $omitted_count++;
     }
    } else { die 'key value expected'; }
-   return $element;
+   return $href;
   };
 
-  $guts =~ s!(<span[^>]+data-keyref=["'][^"']*["'][^>]*>.*?<\/span>)!$regsub_process_keyref->(dirname($html_file),$1)!gse;
+  $guts =~ s!(=[\s\n\r]*["']keyref://[^"']*["'])!$regsub_process_keyref->(dirname($html_file),$1)!gse;
   write_entire_file($html_file, $guts) if !$dry_run;
  }
  print "    Converted $updated_count keyrefs.\n" if $updated_count;
@@ -194,7 +187,7 @@ sub read_entire_file {
  my $filename = shift;
  open(FILE, "<$filename") or die "can't open $filename for read: $!";
  local $/ = undef;
- binmode(FILE, ":encoding(utf-8)");  # the UTF-8 package checks and enforces this
+ binmode(FILE, ":encoding(utf-8)");  # the utf8::all package checks and enforces this
  my $contents = <FILE>;
  close FILE;
  return $contents;
@@ -203,32 +196,28 @@ sub read_entire_file {
 sub write_entire_file {
  my ($filename, $contents) = @_;
  open(FILE, ">$filename") or die "can't open $filename for write: $!";
- binmode(FILE, ":encoding(utf-8)");  # the UTF-8 package checks and enforces this
+ binmode(FILE, ":encoding(utf-8)");  # the utf8:all package checks and enforces this
  print FILE $contents;
  close FILE;
 }
 
-# sort and remove duplicates
-sub distinct { return sort keys %{{map {($_ => 1)} @_}} }
 
 
 
 =head1 NAME
 
-fix_html_xbook_links.pl - resolve cross-book links in DITA-OT HTML5 outputs
+fix_html_xbook_links.pl - resolve cross-book links in DITA-OT HTML outputs
 
 =head1 SYNOPSIS
 
   <html_dir> [<html_dir> ...]
-        Set of directories containing HTML5 output from the DITA-OT
+        Set of directories containing HTML output from the DITA-OT
   -dry-run
         Process but don't modify files
-  -keep-keyrefs
-        Keep @data-keyref attributes in HTML (to allow for future incremental updates)
 
 =head1 VERSION
 
-0.25
+1.00
 
 =cut
 
