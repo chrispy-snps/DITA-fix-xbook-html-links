@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <condition value="no" property="preserve.keys">
+    <not>
+      <isset property="preserve.keys"/>
+    </not>
+  </condition>
+  <condition property="preserve-keys.yes">
+    <istrue value="${preserve.keys}"/>
+  </condition>
+</project>

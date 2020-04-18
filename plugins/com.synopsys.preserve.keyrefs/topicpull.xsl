@@ -6,8 +6,10 @@
     exclude-result-prefixes="xs"
     version="2.0">
 
+  <xsl:param name="PRESERVE-KEYS" select="'no'"/>
 
-  <xsl:template match="*[dita-ot:is-link(.) and contains(@keyref, '.') and not(@href)]">
+
+  <xsl:template match="*[dita-ot:is-link(.) and contains(@keyref, '.') and not(@href) and $PRESERVE-KEYS='yes']">
     <xsl:copy>
       <xsl:apply-templates select="@*"/>
       <xsl:attribute name="href" select="concat('keyref://', @keyref)"/>
@@ -21,7 +23,7 @@
 
   <!-- Process a link in the related-links section. Retrieve link text, type, and
        description if possible (and not already specified locally). -->
-  <xsl:template match="*[contains(@class, ' topic/link ') and contains(@keyref, '.') and not(@href)]">
+  <xsl:template match="*[contains(@class, ' topic/link ') and contains(@keyref, '.') and not(@href) and $PRESERVE-KEYS='yes']">
     <xsl:param as="element()*" name="baseContextElement" tunnel="yes"/>
     <xsl:copy>
       <!--copy existing explicit attributes-->

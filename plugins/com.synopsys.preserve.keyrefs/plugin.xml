@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?xml-model href="dita-ot/plugin.rnc" type="application/relax-ng-compact-syntax"?>
 <plugin id="com.synopsys.preserve.keyrefs">
+  <!-- add a new 'preserve.keys' parameter to pre-processing -->
+  <feature extension="dita.preprocess.topicpull.param" file="insertParameters.xml"/>
+
+  <!-- add an Ant file that sets a default for the new parameter -->
+  <feature extension="dita.conductor.target.relative" file="antWrapper.xml"/>
+
+
 
   <!-- this saves scoped keys as href="keyref://..." references -->
   <feature extension="dita.xsl.topicpull" value="topicpull.xsl" type="file"/>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dummy xmlns:if="ant:if">
+  <!-- dummy tag is because we need a wrapper element around the parameters -->
+  <param name="PRESERVE-KEYS" expression="${preserve.keys}" if:set="preserve.keys"/>
+</dummy>

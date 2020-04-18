@@ -98,7 +98,18 @@ Copy the plugin to your DITA-OT's `plugins/` directory, then run
 dita --install
 ```
 
-## Usage
+## Transformation Usage
+
+To preserve key information, run your transformation with the `preserve.keys` parameter set to `yes`:
+
+```
+dita -Dpreserve.keys=yes ... -o out/book1
+dita -Dpreserve.keys=yes ... -o out/book2
+...
+
+```
+
+## Post-Processing Usage
 
 This utility processes one or more directories containing HTML output from the DITA-OT, then modifies the files in-place to resolve cross-deliverable links.
 

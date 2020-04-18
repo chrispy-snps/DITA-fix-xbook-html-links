@@ -4,6 +4,8 @@
                 exclude-result-prefixes="xs">
   <xsl:output indent="yes"/>
 
+  <xsl:param name="PRESERVE-KEYS" select="'no'"/>
+
   <xsl:template match="@xtrc"/>
   <xsl:template match="@xtrf"/>
   <xsl:template match="@class"/>
