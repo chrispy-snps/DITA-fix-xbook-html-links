@@ -144,8 +144,8 @@ The `keyref://` references are converted by a perl regular-expression that evalu
 
 Note the following limitations of this script and this flow:
 
+* Scopes inside maps (`bookname.scopename.keyname`) are not supported.
 * The cross-book scope names must match either the book map names or the output directory names.
-* The plugin creates keys-*bookname*.ditamap files for all output types, not just HTML output types.
 * Although the keys-only map files contain the original `<mapref>` references, the information is not used or cross-checked for consistency.
 * The DITA-OT produces error messages for cross-book resource-only map references, but they seem to be harmless.
 
