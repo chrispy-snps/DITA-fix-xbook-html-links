@@ -66,7 +66,7 @@ my %keymap_files = ();
     return 1; },
    follow => 1 }, $dir);
  }
- print "  Found ".sum0(map {scalar(%{$html_files_in_dir{$_}})} keys %html_files_in_dir)." HTML files.\n";
+ print "  Found ".sum0(map {scalar(keys %{$html_files_in_dir{$_}})} keys %html_files_in_dir)." HTML files.\n";
 }
 
 
