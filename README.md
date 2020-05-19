@@ -25,15 +25,15 @@ The provided DITA-OT plugin does the following:
 
   ```
   out/bookA/index.html
-  out/bookA/keys-bookA.ditamap
+  out/bookA/keys-bookA.ditamap    <---
   ...book A content files...
 
   out/bookB/index.html
-  out/bookB/keys-bookB.ditamap
+  out/bookB/keys-bookB.ditamap    <---
   ...book B content files...
 
   out/bookC/index.html
-  out/bookC/keys-bookC.ditamap
+  out/bookC/keys-bookC.ditamap    <---
   ...book C content files...
   ```
 

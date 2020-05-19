@@ -41,7 +41,8 @@ if (!@html_dirs) {
  
 
 # see what keymap and HTML files we can find
-my %html_files = ();
+my %html_files_in_dir = ();
+my %html_file_for_base = ();
 my %keymap_files = ();
 {
  print "Searching for files...\n";
@@ -55,10 +56,17 @@ my %keymap_files = ();
 
  foreach my $dir (map {File::Spec->rel2abs(dirname($_))} sort keys %keymap_files) {  # hash HTML files by keymap directory
   find({
-   wanted => sub { $html_files{$dir}->{$File::Find::name} = '' if (m!\.html?$!i); return 1; },
+   wanted => sub {
+    if (m!\.html?$!i) {
+     my $thisfile = File::Spec->rel2abs($File::Find::name);
+     $html_files_in_dir{$dir}->{$thisfile} = '';
+     my $basefile = ($thisfile =~ s!\.[^\.]+$!!r);
+     $html_file_for_base{$basefile} = $thisfile;  # if you have a .htm and .html file of the same name, you deserve bad things
+    }
+    return 1; },
    follow => 1 }, $dir);
  }
- print "  Found ".sum0(map {scalar(%{$html_files{$_}})} keys %html_files)." HTML files.\n";
+ print "  Found ".sum0(map {scalar(%{$html_files_in_dir{$_}})} keys %html_files_in_dir)." HTML files.\n";
 }
 
 
@@ -92,55 +100,51 @@ my $deliverables_twig = XML::Twig->new()->parse('<deliverables/>');
 # Key resolution rules:
 #
 # * Output directory names (highest)
-# * Keymap names (lowest)
-my %cache = ();
- sub compute_href_from_scoped_keyref {
-  my ($scoped_keyref) = @_;
-  return $cache{$scoped_keyref} if defined($cache{$scoped_keyref});  # global scope namespace
+# * Map names (lowest)
+my %cache = ();  # the scope namespace is global across the collection, so we can cache it globally
+sub compute_href_from_scoped_keyref {
+ my ($scoped_keyref) = @_;
+ return $cache{$scoped_keyref} if defined($cache{$scoped_keyref});
+ my ($book_scope, $key_value) = ($scoped_keyref =~ m!^([^\.]+)\.(.*)$!);
+ my @deliverables = $deliverables_twig->root->children("deliverable[\@dirname='$book_scope' or \@map='$book_scope']");
+ # apply book scope precedence here, if any
+ if (scalar(@deliverables) > 1) {
+  print "    Warning: Multiple deliverables match '$book_scope', using first match:\n";
+  print sprintf("      original map name: '%s.ditamap', output directory name: '%s'\n", $_->att('map'), $_->att('dirname')) for @deliverables;
+  @deliverables = ($deliverables[0]);
+ }
+ if (!@deliverables) {
+  print "    Error: Could not resolve book scope '$book_scope'.\n";
+  return ($cache{$scoped_keyref} = undef);
+ }
+ my @target_hrefs = ();
+ foreach my $deliverable (@deliverables) {
+  my $keymap_elt = $deliverable->att('#keymap_elt');
+  if (my @topicrefs = $keymap_elt->descendants_or_self("*[\@keys =~ /\\b$key_value\\b/ and \@href]")) {
+   my $href = File::Spec->rel2abs($topicrefs[0]->att('href'), dirname($keymap_elt->att('file')));
 
-  my ($book_scope, $key_value) = ($scoped_keyref =~ m!^([^\.]+)\.(.*)$!);
-  my @deliverables = $deliverables_twig->root->children("deliverable[\@dirname='$book_scope' or \@map='$book_scope']");
-
-  # apply book scope precedence here, if any
-  if (scalar(@deliverables) > 1) {
-   print "    Warning: Multiple deliverables match '$book_scope', using first match:\n";
-   print sprintf("      original map name: '%s.ditamap', output directory name: '%s'\n", $_->att('map'), $_->att('dirname')) for @deliverables;
-   @deliverables = ($deliverables[0]);
-  }
-
-  if (!@deliverables) {
-   print "    Error: Could not resolve book scope '$book_scope'.\n";
-   return ($cache{$scoped_keyref} = undef);
-  }
-
-  my @target_hrefs = ();
-  foreach my $deliverable (@deliverables) {
-   my $keymap_elt = $deliverable->att('#keymap_elt');
-   if (my @topicrefs = $keymap_elt->descendants_or_self("*[\@keys =~ /\\b$key_value\\b/ and \@href]")) {
-    my $href = File::Spec->rel2abs($topicrefs[0]->att('href'), dirname($keymap_elt->att('file')));
-    $href =~ s!\.dita!\.html!i;
-    if (-f ($href =~ s!#.*$!!r)) {
-     push @target_hrefs, $href;
-    } else {
-     print "    Warning: Could not find '$href'\n.";  # we have the output directory and keymap file but not the file
-    }
+   # convert .dita href file to .htm/.html file of the same base name (and keep any #id suffix)
+   my $href_base = ($href =~ s!\.dita(#[\w_]+)?$!!ir);
+   if (defined($html_file_for_base{$href_base})) {
+    (my $ext) = $html_file_for_base{$href_base} =~ m!(\.\w+)$!;
+    push @target_hrefs, ($href =~ s!\.dita!${ext}!ir);
+   } else {
+    print "    Warning: Could not find HTML file for '$href'.\n";  # we have the output directory and keymap file but not the file
    }
   }
-
-  if (!@target_hrefs) {
-   print "    Error: Could not resolve scoped key reference '$scoped_keyref'.\n";
-   return ($cache{$scoped_keyref} = undef);
-  }
-
-  # apply href precedence here, if any
-  if (scalar(@target_hrefs) > 1) {
-   print "    Warning: Multiple key definitions matched '$scoped_keyref', using first match:\n";
-   print "      ".File::Spec->abs2rel($_)."\n" for @target_hrefs;
-   @target_hrefs = ($target_hrefs[0]);
-  }
-
-  return ($cache{$scoped_keyref} = $target_hrefs[0]);  # global scope namespace
  }
+ if (!@target_hrefs) {
+  print "    Error: Could not resolve scoped key reference '$scoped_keyref'.\n";
+  return ($cache{$scoped_keyref} = undef);
+ }
+ # apply href precedence here, if any
+ if (scalar(@target_hrefs) > 1) {
+  print "    Warning: Multiple key definitions matched '$scoped_keyref', using first match:\n";
+  print "      ".File::Spec->abs2rel($_)."\n" for @target_hrefs;
+  @target_hrefs = ($target_hrefs[0]);
+ }
+ return ($cache{$scoped_keyref} = $target_hrefs[0]);  # global scope namespace
+}
 
 
 
@@ -152,7 +156,7 @@ foreach my $keymap_elt ($keymaps_twig->root->children) {
  print sprintf("  Processing '%s'...\n", basename($bookdir));
  my $updated_count = 0;
  my $omitted_count = 0;
- foreach my $html_file (sort keys %{$html_files{$bookdir}}) {
+ foreach my $html_file (sort keys %{$html_files_in_dir{$bookdir}}) {
   my $guts = read_entire_file($html_file);
 
   # this subroutine converts a scoped-keyref href, if possible
@@ -217,7 +221,7 @@ fix_html_xbook_links.pl - resolve cross-book links in DITA-OT HTML outputs
 
 =head1 VERSION
 
-1.00
+1.05
 
 =cut
 
