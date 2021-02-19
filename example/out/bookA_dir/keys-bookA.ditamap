@@ -1,15 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<?workdir /tmp/temp20200418131821702?>
-<?workdir-uri file:/tmp/temp20200418131821702/?>
+<?workdir /tmp/temp20210209160452718?>
+<?workdir-uri file:/tmp/temp20210209160452718/?>
 <?path2project?>
 <?path2project-uri ./?>
 <?path2rootmap-uri ./?>
-<map xmlns:ditaarch="http://dita.oasis-open.org/architecture/2005/"
-     xmlns:dita-ot="http://dita-ot.sourceforge.net/ns/201007/dita-ot"
+<map xmlns:dita-ot="http://dita-ot.sourceforge.net/ns/201007/dita-ot"
+     xmlns:ditaarch="http://dita.oasis-open.org/architecture/2005/"
      cascade="merge"
      ditaarch:DITAArchVersion="1.3"
      domains="(topic abbrev-d) (topic delay-d) (map ditavalref-d) (map glossref-d) (topic hazard-d) (topic hi-d) (topic indexing-d) (map mapgroup-d) (topic markup-d xml-d) (topic markup-d) (topic pr-d) (topic relmgmt-d) (topic sw-d) (topic ui-d) (topic ut-d) a(props deliveryTarget)"
-     keyscope="A">
+     keyscope="A"
+     specializations="@props/deliveryTarget">
    <title>Book A Online Help</title>
    <mapref format="ditamap"
            keyscope="bookB1"

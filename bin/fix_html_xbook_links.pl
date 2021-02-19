@@ -76,9 +76,15 @@ my $deliverables_twig = XML::Twig->new()->parse('<deliverables/>');
 {
  my $count = 0;
  foreach my $keyfile (sort map {File::Spec->rel2abs($_)} keys %keymap_files) {
+  my @maprefs = ();
   my $keymap_elt = $keymap_files{$keyfile} = XML::Twig->new(
    twig_handlers => {
     '*[@keys]' => sub { $count++; return 1; },
+    'mapref[@format="ditamap" and @processing-role="resource-only" and @scope="peer" and @keyscope and @href]' => sub {
+     $_->set_att('map', basename($_->att('href')) =~ s!\.ditamap$!!r);
+     my $mapref = $_->copy->del_att('scope', 'processing-role', 'format', 'href');
+     push @maprefs, $mapref;
+     return 1; },
    })->safe_parsefile($keyfile)->root;
   $keymap_elt->set_att('file', $keyfile);
   $keymap_elt->move('last_child', $keymaps_twig->root);
@@ -86,12 +92,14 @@ my $deliverables_twig = XML::Twig->new()->parse('<deliverables/>');
   my $output = File::Spec->rel2abs(dirname($keyfile));
   my $dirname = basename($output);
   my ($map) = (basename($keyfile) =~ m!keys-([^/]+)\.ditamap$!i);
-  $deliverables_twig->root->insert_new_elt('last_child', 'deliverable' => {'map' => $map, 'dirname' => $dirname, 'output' => $output, '#keymap_elt' => $keymap_elt});
+  my $this_deliverable = $deliverables_twig->root->insert_new_elt('last_child', 'deliverable' => {'map' => $map, 'dirname' => $dirname, 'output' => $output, '#keymap_elt' => $keymap_elt}, @maprefs);
+  $keymap_elt->set_att('#deliverable_elt', $this_deliverable);
  }
  print "  Found $count key definitions.\n";
 }
 #$deliverables_twig->print(pretty_print => 'indented');
 #$keymaps_twig->print(pretty_print => 'indented');
+#exit;
 
 
 
@@ -99,14 +107,21 @@ my $deliverables_twig = XML::Twig->new()->parse('<deliverables/>');
 #
 # Key resolution rules:
 #
-# * Output directory names (highest)
-# * Map names (lowest)
-my %cache = ();  # the scope namespace is global across the collection, so we can cache it globally
+# * Output directory name (highest)
+# * Map file name associated with scope name (lowest)
 sub compute_href_from_scoped_keyref {
- my ($scoped_keyref) = @_;
- return $cache{$scoped_keyref} if defined($cache{$scoped_keyref});
+ my ($scoped_keyref, $keymap_elt) = @_;
  my ($book_scope, $key_value) = ($scoped_keyref =~ m!^([^\.]+)\.(.*)$!);
- my @deliverables = $deliverables_twig->root->children("deliverable[\@dirname='$book_scope' or \@map='$book_scope']");
+
+ # get possible deliverable matches
+ my @deliverables = ();
+ push @deliverables, $deliverables_twig->root->children("deliverable[\@dirname='$book_scope']");
+
+ if (!@deliverables) {
+  my %maps = map {$_->att('map') => 1} $keymap_elt->att('#deliverable_elt')->children("mapref[\@keyscope='$book_scope']");
+  push @deliverables, map {$deliverables_twig->root->children("deliverable[\@map='$_']")} (sort keys %maps);
+ }
+
  # apply book scope precedence here, if any
  if (scalar(@deliverables) > 1) {
   print "    Warning: Multiple deliverables match '$book_scope', using first match:\n";
@@ -115,7 +130,7 @@ sub compute_href_from_scoped_keyref {
  }
  if (!@deliverables) {
   print "    Error: Could not resolve book scope '$book_scope'.\n";
-  return ($cache{$scoped_keyref} = undef);
+  return undef;
  }
  my @target_hrefs = ();
  foreach my $deliverable (@deliverables) {
@@ -135,7 +150,7 @@ sub compute_href_from_scoped_keyref {
  }
  if (!@target_hrefs) {
   print "    Error: Could not resolve scoped key reference '$scoped_keyref'.\n";
-  return ($cache{$scoped_keyref} = undef);
+  return undef;
  }
  # apply href precedence here, if any
  if (scalar(@target_hrefs) > 1) {
@@ -143,7 +158,7 @@ sub compute_href_from_scoped_keyref {
   print "      ".File::Spec->abs2rel($_)."\n" for @target_hrefs;
   @target_hrefs = ($target_hrefs[0]);
  }
- return ($cache{$scoped_keyref} = $target_hrefs[0]);  # global scope namespace
+ return $target_hrefs[0];  # global scope namespace
 }
 
 
@@ -163,7 +178,7 @@ foreach my $keymap_elt ($keymaps_twig->root->children) {
   my $regsub_process_keyref = sub {
    my ($srcdir, $href) = @_;
    if (my ($scoped_keyref) = $href =~ m!keyref://([^"']+)["']!) {
-    if (defined(my $new_href = compute_href_from_scoped_keyref($scoped_keyref))) {
+    if (defined(my $new_href = compute_href_from_scoped_keyref($scoped_keyref, $keymap_elt))) {
      $href = sprintf('="%s"', File::Spec->abs2rel($new_href, $srcdir));
      $updated_count++;
     } else {
@@ -221,7 +236,7 @@ fix_html_xbook_links.pl - resolve cross-book links in DITA-OT HTML outputs
 
 =head1 VERSION
 
-1.05
+1.10
 
 =cut
 
